@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+requests
+python-multipart
+pydantic
+moviepy
+minio
+redis
+rq
