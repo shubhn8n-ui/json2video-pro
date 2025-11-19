@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
-import subprocess, uuid, os, json
+from fastapi.responses import FileResponse, JSONResponse
+import subprocess, uuid, os, json, asyncio
 
 app = FastAPI()
 
@@ -10,9 +10,10 @@ async def render_api(request: Request):
 
     os.makedirs("static", exist_ok=True)
 
-    output_path = f"static/{uuid.uuid4()}.mp4"
+    filename = f"{uuid.uuid4()}.mp4"
+    output_path = f"static/{filename}"
 
-    # Render-friendly simple ffmpeg black video
+    # ffmpeg command (non-blocking)
     cmd = [
         "ffmpeg", "-y",
         "-f", "lavfi",
@@ -20,12 +21,27 @@ async def render_api(request: Request):
         output_path
     ]
 
-    subprocess.run(cmd)
+    # Run FFmpeg asynchronously (no blocking)
+    asyncio.create_task(run_ffmpeg(cmd))
 
-    return {
-        "status": "done",
-        "video_url": f"/result/{os.path.basename(output_path)}"
-    }
+    # Immediate response (no timeout)
+    return {"status": "processing", "video_url": f"/result/{filename}"}
+
+async def run_ffmpeg(cmd):
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    await process.communicate()
+
+@app.get("/result/{file}")
+async def result(file: str):
+    file_path = f"static/{file}"
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    return JSONResponse({"error": "not ready"}, status_code=404)
+
 
 @app.get("/result/{file}")
 async def download(file: str):
