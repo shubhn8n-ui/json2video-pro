@@ -1,46 +1,23 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import subprocess
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
+from render_engine import render_video
 import uuid
-import os
 
 app = FastAPI()
 
-class RenderInput(BaseModel):
-    resolution: str
-    scenes: list
-    elements: list
-
 @app.post("/render")
-def render_video(data: RenderInput):
-    job_id = uuid.uuid4().hex
-    output_path = f"/tmp/{job_id}.mp4"
+async def render_api(request: Request):
+    body = await request.json()
 
-    # Simple demo ffmpeg cmd: 5 sec black video
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-f", "lavfi",
-        "-i", "color=color=black:size=1080x1920:duration=5",
-        output_path
-    ]
+    print("RECEIVED JSON:", body)
 
-    subprocess.run(cmd)
+    output = render_video(body)
 
-    return {
-        "job_id": job_id,
-        "status": "done",
-        "url": f"https://json2video-pro.onrender.com/result/{job_id}"
-    }
+    return {"status": "completed", "video_url": f"/result/{uuid.uuid4()}"}
 
-@app.get("/result/{job_id}")
-def get_result(job_id: str):
-    path = f"/tmp/{job_id}.mp4"
 
-    if not os.path.exists(path):
-        return {"error": "not found"}
+@app.get("/result/{id}")
+async def download(id: str):
+    return FileResponse("static/output/final.mp4", media_type="video/mp4")
 
-    return {
-        "download": f"https://json2video-pro.onrender.com/static/{job_id}.mp4"
-    }
 
