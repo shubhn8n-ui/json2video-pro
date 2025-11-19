@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
-from render_engine import render_video
-import uuid
+import subprocess, uuid, os, json
 
 app = FastAPI()
 
@@ -9,15 +8,27 @@ app = FastAPI()
 async def render_api(request: Request):
     body = await request.json()
 
-    print("RECEIVED JSON:", body)
+    os.makedirs("static", exist_ok=True)
 
-    output = render_video(body)
+    output_path = f"static/{uuid.uuid4()}.mp4"
 
-    return {"status": "completed", "video_url": f"/result/{uuid.uuid4()}"}
+    # Render-friendly simple ffmpeg black video
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "lavfi",
+        "-i", "color=c=black:s=1080x1920:d=5",
+        output_path
+    ]
 
+    subprocess.run(cmd)
 
-@app.get("/result/{id}")
-async def download(id: str):
-    return FileResponse("static/output/final.mp4", media_type="video/mp4")
+    return {
+        "status": "done",
+        "video_url": f"/result/{os.path.basename(output_path)}"
+    }
+
+@app.get("/result/{file}")
+async def download(file: str):
+    return FileResponse(f"static/{file}", media_type="video/mp4")
 
 
