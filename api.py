@@ -1,11 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import subprocess
 import uuid
-import redis
-from rq import Queue
-
-r = redis.Redis(host="redis", port=6379, db=0)
-q = Queue("render", connection=r)
+import os
 
 app = FastAPI()
 
@@ -15,20 +12,35 @@ class RenderInput(BaseModel):
     elements: list
 
 @app.post("/render")
-async def render_video(data: RenderInput):
+def render_video(data: RenderInput):
     job_id = uuid.uuid4().hex
-    q.enqueue("worker.render_task", job_id, data.dict())
-    return {"job_id": job_id, "status": "queued"}
+    output_path = f"/tmp/{job_id}.mp4"
 
-@app.get("/status/{job_id}")
-def get_status(job_id: str):
-    try:
-        with open(f"/tmp/{job_id}.json") as f:
-            import json
-            return json.load(f)
-    except:
-        return {"status": "processing"}
+    # Simple demo ffmpeg cmd: 5 sec black video
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f", "lavfi",
+        "-i", "color=color=black:size=1080x1920:duration=5",
+        output_path
+    ]
+
+    subprocess.run(cmd)
+
+    return {
+        "job_id": job_id,
+        "status": "done",
+        "url": f"https://json2video-pro.onrender.com/result/{job_id}"
+    }
 
 @app.get("/result/{job_id}")
-def result(job_id: str):
-    return {"url": f"https://your-bucket/{job_id}.mp4"}
+def get_result(job_id: str):
+    path = f"/tmp/{job_id}.mp4"
+
+    if not os.path.exists(path):
+        return {"error": "not found"}
+
+    return {
+        "download": f"https://json2video-pro.onrender.com/static/{job_id}.mp4"
+    }
+
