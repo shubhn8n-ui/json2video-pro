@@ -25,8 +25,11 @@ async def render_api(request: Request):
     asyncio.create_task(run_ffmpeg(cmd))
 
     # Immediate response (no timeout)
-    return {"status": "processing", "video_url": f"/result/{filename}"}
-
+    return{
+    "job_id": job_id,
+    "status": "processing",
+    "video_url": f"/result/{job_id}.mp4"
+}
 async def run_ffmpeg(cmd):
     process = await asyncio.create_subprocess_exec(
         *cmd,
